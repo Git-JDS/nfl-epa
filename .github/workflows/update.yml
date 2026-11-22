@@ -1,0 +1,44 @@
+# Rebuilds site/data.js twice a week during the season (Tue after MNF, Fri after TNF) and publishes site/ to GitHub Pages.
+# Setup: push this folder to a GitHub repo, then Settings → Pages → Source: "GitHub Actions".
+name: Update EPA data
+
+on:
+  schedule:
+    - cron: "0 11 * 9-12,1-2 2,5"   # 11:00 UTC Tue + Fri, Sep–Feb
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths: ["site/index.html", "build_data.py"]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency: { group: pages, cancel-in-progress: true }
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.txt
+      - run: python build_data.py
+      - name: Commit refreshed data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add site/data.js site/logos data/fourth_model.json
+          git diff --cached --quiet || git commit -m "Refresh EPA data $(date -u +%F)"
+          git push
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: site }
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: "${{ steps.d.outputs.page_url }}" }
+    steps:
+      - id: d
+        uses: actions/deploy-pages@v4

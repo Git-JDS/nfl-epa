@@ -1,0 +1,12 @@
+.venv/
+data/*.parquet
+data/*.csv
+logs/
+.DS_Store
+
+# local-only data, never committed
+data/private/
+.sumer_key
+site/NFL-EPA.html
+__pycache__/
+*.pyc

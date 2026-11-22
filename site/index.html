@@ -1,0 +1,945 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NFL EPA Tiers</title>
+<style>
+:root {
+  --bg: #f7f7f5; --panel: #ffffff; --ink: #16181d; --muted: #646a75; --line: #e3e4e8;
+  --accent: #2f5fd0; --good: #1f8a4c; --bad: #c2392b; --chip: #eef0f4;
+  --good-bg: 31,138,76; --bad-bg: 194,57,43;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111317; --panel: #191c22; --ink: #e9eaee; --muted: #9aa0ab; --line: #2b2f38;
+    --accent: #7aa2ff; --good: #4cc27f; --bad: #ff7a6b; --chip: #242832;
+    --good-bg: 76,194,127; --bad-bg: 255,122,107;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111317; --panel: #191c22; --ink: #e9eaee; --muted: #9aa0ab; --line: #2b2f38;
+  --accent: #7aa2ff; --good: #4cc27f; --bad: #ff7a6b; --chip: #242832;
+  --good-bg: 76,194,127; --bad-bg: 255,122,107;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
+.wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 60px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 14px; }
+h1 { font-size: 24px; margin: 0; letter-spacing: -0.02em; }
+.sub { color: var(--muted); font-size: 13px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+.filters { display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center; position: sticky; top: 0; z-index: 5; }
+.f { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.f > span.lbl { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+select, input[type=number] { background: var(--chip); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 7px; padding: 5px 8px; font: inherit; }
+input[type=number] { width: 70px; }
+.seg { display: inline-flex; background: var(--chip); border-radius: 8px; padding: 2px; }
+.seg button { border: 0; background: transparent; color: var(--muted); font: inherit; padding: 4px 10px;
+  border-radius: 6px; cursor: pointer; }
+.seg button.on { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+label.ck { display: inline-flex; gap: 4px; align-items: center; cursor: pointer; }
+.tabs { display: flex; gap: 4px; margin: 18px 0 12px; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; background: none; color: var(--muted); font: 600 14px/1 inherit; font-family: inherit;
+  padding: 10px 14px; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs button.on { color: var(--ink); border-color: var(--accent); }
+.view { display: none; } .view.on { display: block; }
+.grid { display: grid; gap: 16px; }
+h2 { font-size: 15px; margin: 0 0 4px; } .note { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
+svg text { fill: var(--ink); } svg .axis line, svg .axis path { stroke: var(--line); }
+svg .tick { fill: var(--muted); font-size: 11px; }
+svg .quad { fill: var(--muted); font-size: 11px; opacity: .8; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 6px 8px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+th { font-size: 12px; color: var(--muted); font-weight: 600; cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--panel); }
+th:hover { color: var(--ink); } th.sorted { color: var(--accent); }
+th:first-child, td:first-child, th.l, td.l { text-align: left; }
+td.team { display: flex; align-items: center; gap: 8px; }
+td.team img { width: 22px; height: 22px; object-fit: contain; }
+.dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.rk { color: var(--muted); width: 28px; }
+.tip { position: fixed; pointer-events: none; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 10px; font-size: 12.5px; box-shadow: 0 4px 16px rgba(0,0,0,.15); display: none; z-index: 20; }
+.legend { display: flex; gap: 14px; font-size: 12.5px; color: var(--muted); }
+.pk-head { display: flex; flex-wrap: wrap; gap: 10px 20px; justify-content: space-between; align-items: flex-start; }
+.pk { display: grid; gap: 10px; margin-top: 12px; }
+.game { display: grid; grid-template-columns: 92px minmax(210px, 1.3fr) 130px minmax(200px, 1.4fr) minmax(150px, 1fr); gap: 10px 14px;
+  align-items: center; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.game.final { opacity: .78; }
+.g-time { font-size: 12px; color: var(--muted); line-height: 1.3; }
+.g-teams { display: grid; gap: 4px; }
+.g-team { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.g-team img { width: 24px; height: 24px; object-fit: contain; }
+.g-team .ln { font-weight: 400; color: var(--muted); font-size: 12.5px; }
+.g-team .sc { margin-left: auto; font-variant-numeric: tabular-nums; }
+.g-team.pick { color: var(--accent); }
+.g-league label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 3px; }
+.g-league input { width: 100%; }
+.g-league .mv { font-size: 11.5px; margin-top: 3px; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { font-size: 11.5px; padding: 2px 8px; border-radius: 999px; background: var(--chip); white-space: nowrap; }
+.chip b { font-weight: 600; }
+.chip.mv { background: rgba(var(--good-bg), .18); }
+.g-lean { text-align: right; }
+.g-lean .big { font-size: 16px; font-weight: 700; }
+.g-lean .str { font-size: 12px; color: var(--muted); }
+.g-lean .res { font-size: 12px; margin-top: 2px; }
+.g-lean .res.w { color: var(--good); } .g-lean .res.l { color: var(--bad); }
+.g-model { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+@media (max-width: 860px) {
+  .game { grid-template-columns: 1fr 1fr; }
+  .g-time { grid-column: 1 / -1; } .g-teams { grid-column: 1 / -1; }
+  .g-angles { grid-column: 1 / -1; order: 5; }
+  .g-lean { text-align: left; }
+}
+.legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 5px; border-radius: 2px; }
+footer { color: var(--muted); font-size: 12px; margin-top: 24px; }
+@media (max-width: 640px) { .filters { position: static; } h1 { font-size: 20px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>NFL EPA Tiers</h1>
+    <div class="sub" id="sub"></div>
+  </header>
+
+  <div class="panel filters">
+    <div class="f"><span class="lbl">Weeks</span>
+      <select id="wFrom"></select><span>to</span><select id="wTo"></select></div>
+    <div class="f"><span class="lbl">Plays</span>
+      <div class="seg" id="ptype"><button data-v="all" class="on">All</button><button data-v="pass">Pass</button><button data-v="run">Run</button></div></div>
+    <div class="f"><span class="lbl">Down</span>
+      <label class="ck"><input type="checkbox" class="dn" value="1" checked>1st</label>
+      <label class="ck"><input type="checkbox" class="dn" value="2" checked>2nd</label>
+      <label class="ck"><input type="checkbox" class="dn" value="3" checked>3rd</label>
+      <label class="ck"><input type="checkbox" class="dn" value="4" checked>4th</label></div>
+    <div class="f"><span class="lbl">Win prob</span>
+      <select id="wp"><option value="0">All plays</option><option value="0.1" selected>10–90%</option><option value="0.2">20–80%</option></select></div>
+    <div class="f" id="postWrap" hidden><label class="ck"><input type="checkbox" id="post">Include playoffs</label></div>
+  </div>
+
+  <div class="tabs">
+    <button data-t="teams" class="on">Teams</button>
+    <button data-t="qbs">Quarterbacks</button>
+    <button data-t="trend">Team trend</button>
+    <button data-t="tend">Tendencies</button>
+    <button data-t="fourth">4th downs</button>
+    <button data-t="matchup">Matchup</button>
+    <button data-t="pickem">Pick'em</button>
+  </div>
+
+  <section class="view on" id="v-teams">
+    <div class="grid">
+      <div class="panel">
+        <h2>Team tiers</h2>
+        <p class="note">Offensive EPA/play vs. defensive EPA/play allowed (axis flipped so up = better defense). Dashed lines are league average.</p>
+        <div id="tiers"></div>
+      </div>
+      <div class="panel">
+        <h2>Team efficiency</h2>
+        <p class="note">Click a column to sort. Shading shows rank among the 32 teams (green = good).</p>
+        <div class="tablewrap"><table id="teamTbl"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="v-qbs">
+    <div class="grid">
+      <div class="panel">
+        <div class="f" style="justify-content:space-between">
+          <div><h2>QB efficiency</h2><p class="note">EPA per dropback (passes, sacks, scrambles) vs. completion % over expected. Composite = 0.2×EPA + 0.01×CPOE, rbsdm's blend.</p></div>
+          <div class="f"><span class="lbl">Min dropbacks</span><input type="number" id="minDb" value="100" min="0" step="25"></div>
+        </div>
+        <div id="qbScatter"></div>
+      </div>
+      <div class="panel"><div class="tablewrap"><table id="qbTbl"></table></div></div>
+    </div>
+  </section>
+
+  <section class="view" id="v-trend">
+    <div class="panel">
+      <div class="f" style="justify-content:space-between">
+        <div><h2>Weekly EPA/play</h2><p class="note">Per-game offense and defense for one team. Thin lines = that week, bold = 3-game rolling average. Week filter does not apply here.</p></div>
+        <div class="f"><span class="lbl">Team</span><select id="trTeam"></select></div>
+      </div>
+      <div class="legend"><span><i style="background:var(--accent)"></i>Offense EPA/play</span><span><i style="background:var(--bad)"></i>Defense EPA/play allowed</span></div>
+      <div id="trend"></div>
+    </div>
+  </section>
+
+  <section class="view" id="v-tend">
+    <div class="grid">
+      <div class="panel">
+        <h2>Pass rate over expected vs. offensive efficiency</h2>
+        <p class="note">PROE = actual pass rate minus nflverse's expected pass rate for the down, distance, field position, score and clock. Positive = throws more than a typical team would in the same spots. Ignores the Pass/Run filter. Tip: set Down to 1st + 2nd and Win prob to 20–80% for the classic "neutral situation" view.</p>
+        <div id="proe"></div>
+      </div>
+      <div class="panel">
+        <h2>Offensive tendencies</h2>
+        <p class="note" id="chartNote">Play-action, motion, RPO and screen come from FTN charting. PA and no-PA EPA are per dropback; motion splits are all plays.</p>
+        <div class="tablewrap"><table id="tendTbl"></table></div>
+      </div>
+      <div class="panel">
+        <h2>Defensive pressure</h2>
+        <p class="note">Blitz = FTN charting counts at least one blitzer on the play. Opponent dropbacks only.</p>
+        <div class="tablewrap"><table id="tendDTbl"></table></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" id="v-matchup">
+    <div class="grid">
+      <div class="panel">
+        <div class="pk-head">
+          <div style="max-width:620px"><h2 id="muTitle">Matchup</h2><p class="note" id="muNote"></p></div>
+          <div class="f" style="gap:10px 16px">
+            <div class="f"><span class="lbl">Team</span><select id="muTeam"></select></div>
+            <div class="f"><span class="lbl">Opponent</span><select id="muOpp"></select></div>
+            <div class="f"><span class="lbl">Situation</span><div class="seg" id="muSit"><button data-v="all">All plays</button><button data-v="neutral">Neutral early downs</button></div></div>
+            <div class="f" id="muBaseWrap"><span class="lbl">Normal =</span><select id="muBase"><option value="pre">Games before this one</option><option value="season">Whole season</option></select></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel"><h2 id="muH1"></h2><p class="note" id="muN1"></p><div class="tablewrap"><table id="muT1"></table></div></div>
+      <div class="panel"><h2 id="muH2"></h2><p class="note" id="muN2"></p><div class="tablewrap"><table id="muT2"></table></div></div>
+      <div class="panel" id="muP3"><h2 id="muH3"></h2><p class="note" id="muN3"></p><div class="tablewrap"><table id="muT3"></table></div></div>
+      <div class="panel" id="muP4"><h2 id="muH4"></h2><p class="note" id="muN4"></p><div class="tablewrap"><table id="muT4"></table></div></div>
+      <div class="panel"><h2 id="muH5"></h2>
+        <p class="note">Each opponent compared with its own games before that week (excluding this team). Deltas in pct pts (rushers in players); <b>bold</b> = a clear change (2+ standard errors). Blank when the opponent had fewer than 2 prior games. Coverage and personnel rows appear only when a local charting file is present; routes and receiver alignment aren't covered.</p>
+        <div class="tablewrap"><table id="muAll"></table></div></div>
+    </div>
+  </section>
+
+  <section class="view" id="v-pickem">
+    <div class="panel">
+      <div class="pk-head">
+        <div>
+          <h2 id="pkTitle">Pick'em helper</h2>
+          <p class="note" id="pkNote"></p>
+        </div>
+        <div class="f"><span class="lbl">League format</span>
+          <div class="seg" id="pkMode"><button data-v="ats" class="on">Against the spread</button><button data-v="su">Straight up</button></div></div>
+      </div>
+      <div class="pk" id="pkGames"></div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h2>Angles used, and how often they've hit</h2>
+      <p class="note">Each is an ATS cover rate on closing lines over every regular-season game since 1999, recomputed every build. Out of 30 angles tested, these are the only ones that beat 50% in both eras. They overlap, so they do not add up: the leans above use how each exact combination actually covered. Treat them as tiebreakers: a 52% edge still loses almost half the time.</p>
+      <div class="tablewrap"><table id="pkAngles"></table></div>
+      <p class="note" style="margin-top:10px"><b>Line movement</b> is usually the biggest edge in a pick'em league. If your league locks lines midweek and the real line moves afterward, the side the market moved toward is getting extra points at your league's number. Each point of movement is worth very roughly 2–3% of cover probability, more when it crosses 3 or 7. Enter your league's line on each game to use it.</p>
+    </div>
+  </section>
+
+  <section class="view" id="v-fourth">
+    <div class="grid">
+      <div class="panel">
+        <h2>4th-down aggressiveness</h2>
+        <p class="note" id="fourthNote"></p>
+        <div id="goeBars"></div>
+      </div>
+      <div class="panel">
+        <h2>4th-down decisions by team</h2>
+        <div class="tablewrap"><table id="fourthTbl"></table></div>
+      </div>
+      <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr))">
+        <div class="panel"><h2>Gutsiest go calls</h2><p class="note">Went for it when the league usually wouldn't (lowest expected go rate).</p><div class="tablewrap"><table id="gutsy"></table></div></div>
+        <div class="panel"><h2>Most conservative kicks</h2><p class="note">Punted or kicked when the league usually goes (highest expected go rate).</p><div class="tablewrap"><table id="timid"></table></div></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>Data: <a href="https://github.com/nflverse" style="color:inherit">nflverse</a> play-by-play (EPA, CPOE from nflfastR models). Pass + run plays only; penalties without a play, kneels and spikes excluded. Run <code>./update.sh</code> to refresh.</footer>
+</div>
+<div class="tip" id="tip"></div>
+
+<script src="data.js"></script>
+<script>
+(() => {
+const D = window.EPA_DATA;
+if (!D) { document.body.innerHTML = '<p style="padding:24px">No data yet. Run <code>./update.sh</code> first.</p>'; return; }
+const T = D.teams, Q = D.qbs, P = D.plays;
+const [W, OFF, DEF, DN, WP, PS, EPA, CPOE, QB, POST, XP, FL] = [0,1,2,3,4,5,6,7,8,9,10,11];
+const SHOTGUN = 1, NOHUDDLE = 2, PA = 4, MOTION = 8, RPO = 16, SCREEN = 32, BLITZ = 64, CHARTED = 128;
+const F4 = D.fourth || [];
+const $ = s => document.querySelector(s);
+const NS = 'http://www.w3.org/2000/svg';
+const fmt = (x, d=3) => x == null || isNaN(x) ? '–' : (x > 0 && d === 3 ? '+' : '') + x.toFixed(d);
+const pct = x => x == null || isNaN(x) ? '–' : (100*x).toFixed(1) + '%';
+
+$('#sub').textContent = `${D.meta.season} season · through week ${D.meta.maxWeek} · ${D.meta.nPlays.toLocaleString()} plays · built ${D.meta.built}`;
+if (P.some(p => p[POST])) $('#postWrap').hidden = false;
+
+// ---------- filters ----------
+const state = { from: 1, to: D.meta.maxWeek, ptype: 'all', downs: new Set([1,2,3,4]), wp: 0.1, post: false, sort: {teams: ['net', -1], qbs: ['comp', -1], tend: ['proe', -1], tendD: ['blitz', -1], fourth: ['goe', -1], muAll: ['w', 1]}, tab: 'teams' };
+try { Object.assign(state, JSON.parse(localStorage.getItem('epaTab') || '{}')); } catch {}
+for (const id of ['#wFrom', '#wTo']) for (let w = 1; w <= D.meta.maxWeek; w++) $(id).add(new Option('Wk ' + w, w));
+$('#wFrom').value = state.from; $('#wTo').value = state.to = D.meta.maxWeek;
+$('#wFrom').onchange = e => { state.from = +e.target.value; if (state.from > state.to) { state.to = state.from; $('#wTo').value = state.to; } render(); };
+$('#wTo').onchange = e => { state.to = +e.target.value; if (state.to < state.from) { state.from = state.to; $('#wFrom').value = state.from; } render(); };
+$('#ptype').onclick = e => { const b = e.target.closest('button'); if (!b) return;
+  for (const x of $('#ptype').children) x.classList.toggle('on', x === b); state.ptype = b.dataset.v; render(); };
+document.querySelectorAll('.dn').forEach(c => c.onchange = () => {
+  state.downs = new Set([...document.querySelectorAll('.dn:checked')].map(x => +x.value)); render(); });
+$('#wp').onchange = e => { state.wp = +e.target.value; render(); };
+$('#post').onchange = e => { state.post = e.target.checked; render(); };
+$('#minDb').oninput = () => render();
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => setTab(b.dataset.t));
+function setTab(t) {
+  state.tab = t;
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x.dataset.t === t));
+  document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + t));
+  try { localStorage.setItem('epaTab', JSON.stringify({ tab: t })); } catch {}
+  render();
+}
+
+function keep(p, ignoreWeeks, ignorePtype) {
+  if (!ignoreWeeks && (p[W] < state.from || p[W] > state.to)) return false;
+  if (p[POST] && !state.post) return false;
+  if (!ignorePtype && state.ptype === 'pass' && !p[PS]) return false;
+  if (!ignorePtype && state.ptype === 'run' && p[PS]) return false;
+  if (p[DN] && !state.downs.has(p[DN])) return false;
+  if (state.wp > 0 && (p[WP] == null || p[WP] < state.wp || p[WP] > 1 - state.wp)) return false;
+  return true;
+}
+
+// ---------- aggregation ----------
+function agg() { return { n: 0, epa: 0, succ: 0 }; }
+function add(a, p) { a.n++; a.epa += p[EPA]; a.succ += p[EPA] > 0 ? 1 : 0; }
+function teamStats() {
+  const off = T.map(agg), def = T.map(agg), offP = T.map(agg), offR = T.map(agg), defP = T.map(agg), defR = T.map(agg);
+  const lg = agg();
+  for (const p of P) {
+    if (!keep(p)) continue;
+    add(off[p[OFF]], p); add(def[p[DEF]], p); add(lg, p);
+    add((p[PS] ? offP : offR)[p[OFF]], p); add((p[PS] ? defP : defR)[p[DEF]], p);
+  }
+  const m = a => a.n ? a.epa / a.n : NaN, s = a => a.n ? a.succ / a.n : NaN;
+  return { league: m(lg), rows: T.map((t, i) => ({
+    t, i, plays: off[i].n,
+    offEpa: m(off[i]), offSr: s(off[i]), defEpa: m(def[i]), defSr: s(def[i]),
+    net: m(off[i]) - m(def[i]), offPass: m(offP[i]), offRun: m(offR[i]),
+    defPass: m(defP[i]), defRun: m(defR[i]),
+    passRate: off[i].n ? offP[i].n / off[i].n : NaN,
+  })) };
+}
+function qbStats() {
+  const a = Q.map(() => ({ n: 0, epa: 0, succ: 0, cpoe: 0, cn: 0 }));
+  for (const p of P) {
+    if (p[QB] < 0 || !keep(p)) continue;
+    const x = a[p[QB]]; x.n++; x.epa += p[EPA]; x.succ += p[EPA] > 0 ? 1 : 0;
+    if (p[CPOE] != null) { x.cpoe += p[CPOE]; x.cn++; }
+  }
+  return Q.map((q, i) => {
+    const x = a[i], epa = x.n ? x.epa / x.n : NaN, cpoe = x.cn ? x.cpoe / x.cn : NaN;
+    return { q, team: T.find(t => t.abbr === q.team), db: x.n, epa, cpoe, sr: x.n ? x.succ / x.n : NaN,
+      comp: 0.2 * epa + 0.01 * (isNaN(cpoe) ? 0 : cpoe) };
+  });
+}
+
+// ---------- shared chart helpers ----------
+const el = (tag, attrs = {}, parent) => { const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; };
+const tip = $('#tip');
+function showTip(e, html) { tip.innerHTML = html; tip.style.display = 'block';
+  const x = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8);
+  tip.style.left = x + 'px'; tip.style.top = (e.clientY + 14) + 'px'; }
+const hideTip = () => tip.style.display = 'none';
+function extent(vals, pad) { const lo = Math.min(...vals), hi = Math.max(...vals), p = (hi - lo) * pad || 0.05; return [lo - p, hi + p]; }
+function ticks(lo, hi, n = 6) { const step = (hi - lo) / n, mag = 10 ** Math.floor(Math.log10(step));
+  const s = [1, 2, 2.5, 5, 10].map(k => k * mag).find(k => k >= step);
+  const out = []; for (let v = Math.ceil(lo / s) * s; v <= hi + 1e-9; v += s) out.push(+v.toFixed(6)); return out; }
+
+function scatter(host, pts, o) {
+  host.innerHTML = '';
+  const Wd = 900, H = o.h || 560, m = { l: 56, r: 16, t: 16, b: 44 };
+  const svg = el('svg', { viewBox: `0 0 ${Wd} ${H}`, width: '100%', role: 'img' }, host);
+  const [x0, x1] = extent(pts.map(p => p.x), 0.08), [y0, y1] = extent(pts.map(p => p.y), 0.08);
+  const sx = v => m.l + (v - x0) / (x1 - x0) * (Wd - m.l - m.r);
+  const sy = v => o.flipY ? m.t + (v - y0) / (y1 - y0) * (H - m.t - m.b) : H - m.b - (v - y0) / (y1 - y0) * (H - m.t - m.b);
+  const g = el('g', { class: 'axis' }, svg);
+  for (const v of ticks(x0, x1)) { el('line', { x1: sx(v), x2: sx(v), y1: m.t, y2: H - m.b }, g);
+    el('text', { x: sx(v), y: H - m.b + 16, 'text-anchor': 'middle', class: 'tick' }, g).textContent = o.xf(v); }
+  for (const v of ticks(y0, y1)) { el('line', { x1: m.l, x2: Wd - m.r, y1: sy(v), y2: sy(v) }, g);
+    el('text', { x: m.l - 6, y: sy(v) + 4, 'text-anchor': 'end', class: 'tick' }, g).textContent = o.yf(v); }
+  el('text', { x: (m.l + Wd - m.r) / 2, y: H - 6, 'text-anchor': 'middle', class: 'tick', 'font-weight': 600 }, svg).textContent = o.xl;
+  el('text', { transform: `translate(14 ${(m.t + H - m.b) / 2}) rotate(-90)`, 'text-anchor': 'middle', class: 'tick', 'font-weight': 600 }, svg).textContent = o.yl;
+  if (o.mx != null) el('line', { x1: sx(o.mx), x2: sx(o.mx), y1: m.t, y2: H - m.b, stroke: 'var(--muted)', 'stroke-dasharray': '4 4', opacity: .7 }, svg);
+  if (o.my != null) el('line', { x1: m.l, x2: Wd - m.r, y1: sy(o.my), y2: sy(o.my), stroke: 'var(--muted)', 'stroke-dasharray': '4 4', opacity: .7 }, svg);
+  if (o.quads) { const [tl, tr, bl, br] = o.quads;
+    el('text', { x: m.l + 8, y: m.t + 14, class: 'quad' }, svg).textContent = tl;
+    el('text', { x: Wd - m.r - 8, y: m.t + 14, class: 'quad', 'text-anchor': 'end' }, svg).textContent = tr;
+    el('text', { x: m.l + 8, y: H - m.b - 8, class: 'quad' }, svg).textContent = bl;
+    el('text', { x: Wd - m.r - 8, y: H - m.b - 8, class: 'quad', 'text-anchor': 'end' }, svg).textContent = br; }
+  const r = o.r || 18;
+  for (const p of pts) {
+    const gg = el('g', { style: 'cursor:default' }, svg), cx = sx(p.x), cy = sy(p.y);
+    if (p.logo) el('image', { href: p.logo, x: cx - r, y: cy - r, width: 2 * r, height: 2 * r }, gg);
+    else el('circle', { cx, cy, r: r * 0.45, fill: p.color, stroke: 'var(--panel)', 'stroke-width': 1.5 }, gg);
+    if (p.label) el('text', { x: cx, y: cy - r * 0.45 - 5, 'text-anchor': 'middle', 'font-size': 11 }, gg).textContent = p.label;
+    el('circle', { cx, cy, r, fill: 'transparent' }, gg);
+    gg.onmousemove = e => showTip(e, p.tip); gg.onmouseleave = hideTip;
+  }
+}
+
+function table(host, cols, rows, key) {
+  const [sk, dir] = state.sort[key];
+  const col = cols.find(c => c.k === sk) || cols[0];
+  rows = rows.slice().sort((a, b) => { const va = col.v(a), vb = col.v(b);
+    if (typeof va === 'string') return dir * va.localeCompare(vb);
+    return (isNaN(va) ? 1 : isNaN(vb) ? -1 : dir * (va - vb)); });
+  // percentile shading per column
+  const shade = {};
+  for (const c of cols) if (c.good) { const vals = rows.map(c.v).filter(v => !isNaN(v)).sort((a, b) => a - b);
+    shade[c.k] = v => { if (isNaN(v) || vals.length < 2) return ''; let q = vals.indexOf(v) / (vals.length - 1);
+      if (c.good < 0) q = 1 - q; const d = q - 0.5, a = Math.abs(d) * 0.55;
+      return `background: rgba(var(${d > 0 ? '--good-bg' : '--bad-bg'}), ${a.toFixed(2)})`; }; }
+  let h = '<thead><tr><th class="rk">#</th>' + cols.map(c =>
+    `<th data-k="${c.k}" class="${c.l ? 'l' : ''} ${c.k === sk ? 'sorted' : ''}" title="${c.title || ''}">${c.h}${c.k === sk ? (dir < 0 ? ' ↓' : ' ↑') : ''}</th>`).join('') + '</tr></thead><tbody>';
+  rows.forEach((r, i) => { h += `<tr><td class="rk">${i + 1}</td>` + cols.map(c =>
+    `<td class="${c.cls || ''}" style="${shade[c.k] ? shade[c.k](c.v(r)) : ''}">${c.f(r)}</td>`).join('') + '</tr>'; });
+  host.innerHTML = h + '</tbody>';
+  host.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
+    const k = th.dataset.k, c = cols.find(x => x.k === k);
+    state.sort[key] = [k, k === sk ? -dir : (c.l ? 1 : (c.good < 0 ? 1 : -1))]; render(); });
+}
+const teamCell = t => `${t.logo ? `<img src="${t.logo}" alt="">` : `<span class="dot" style="background:${t.color}"></span>`}<span>${t.abbr}</span>`;
+
+// ---------- views ----------
+function renderTeams() {
+  const { league, rows } = teamStats();
+  const live = rows.filter(r => r.plays > 0);
+  scatter($('#tiers'), live.map(r => ({ x: r.offEpa, y: r.defEpa, logo: r.t.logo, color: r.t.color,
+    label: r.t.logo ? '' : r.t.abbr,
+    tip: `<b>${r.t.name}</b><br>Off EPA/play ${fmt(r.offEpa)}<br>Def EPA/play ${fmt(r.defEpa)}<br>Net ${fmt(r.net)}` })),
+    { xl: 'Offense EPA/play →', yl: '← Defense EPA/play allowed (up = better)', xf: v => v.toFixed(2), yf: v => v.toFixed(2),
+      flipY: true, mx: league, my: league, quads: ['Bad offense, good defense', 'Good offense, good defense', 'Bad offense, bad defense', 'Good offense, bad defense'] });
+  table($('#teamTbl'), [
+    { k: 'team', h: 'Team', l: 1, cls: 'team', v: r => r.t.abbr, f: r => teamCell(r.t) },
+    { k: 'net', h: 'Net EPA', good: 1, v: r => r.net, f: r => fmt(r.net), title: 'Offense EPA/play minus defense EPA/play allowed' },
+    { k: 'offEpa', h: 'Off EPA', good: 1, v: r => r.offEpa, f: r => fmt(r.offEpa) },
+    { k: 'offSr', h: 'Off SR', good: 1, v: r => r.offSr, f: r => pct(r.offSr), title: 'Success rate: share of plays with EPA > 0' },
+    { k: 'offPass', h: 'Pass EPA', good: 1, v: r => r.offPass, f: r => fmt(r.offPass) },
+    { k: 'offRun', h: 'Run EPA', good: 1, v: r => r.offRun, f: r => fmt(r.offRun) },
+    { k: 'defEpa', h: 'Def EPA', good: -1, v: r => r.defEpa, f: r => fmt(r.defEpa) },
+    { k: 'defSr', h: 'Def SR', good: -1, v: r => r.defSr, f: r => pct(r.defSr) },
+    { k: 'defPass', h: 'Def Pass', good: -1, v: r => r.defPass, f: r => fmt(r.defPass) },
+    { k: 'defRun', h: 'Def Run', good: -1, v: r => r.defRun, f: r => fmt(r.defRun) },
+    { k: 'passRate', h: 'Pass rate', v: r => r.passRate, f: r => pct(r.passRate) },
+    { k: 'plays', h: 'Plays', v: r => r.plays, f: r => r.plays },
+  ], rows, 'teams');
+}
+
+function renderQbs() {
+  const min = +$('#minDb').value || 0;
+  const rows = qbStats().filter(r => r.db >= Math.max(1, min));
+  if (!rows.length) { $('#qbScatter').innerHTML = '<p class="note">No QBs meet the minimum.</p>'; $('#qbTbl').innerHTML = ''; return; }
+  const mean = f => rows.reduce((s, r) => s + f(r) * r.db, 0) / rows.reduce((s, r) => s + r.db, 0);
+  scatter($('#qbScatter'), rows.filter(r => !isNaN(r.cpoe)).map(r => ({ x: r.cpoe, y: r.epa, color: r.team ? r.team.color : 'var(--accent)',
+    label: r.q.name, tip: `<b>${r.q.name}</b> · ${r.q.team}<br>EPA/db ${fmt(r.epa)}<br>CPOE ${fmt(r.cpoe, 1)}<br>${r.db} dropbacks` })),
+    { h: 520, r: 14, xl: 'CPOE (completion % over expected) →', yl: 'EPA per dropback →', xf: v => v.toFixed(0), yf: v => v.toFixed(2),
+      mx: mean(r => isNaN(r.cpoe) ? 0 : r.cpoe), my: mean(r => r.epa) });
+  table($('#qbTbl'), [
+    { k: 'name', h: 'Player', l: 1, v: r => r.q.name, f: r => r.q.name },
+    { k: 'team', h: 'Team', l: 1, cls: 'team', v: r => r.q.team, f: r => r.team ? teamCell(r.team) : r.q.team },
+    { k: 'comp', h: 'Composite', good: 1, v: r => r.comp, f: r => fmt(r.comp) },
+    { k: 'epa', h: 'EPA/db', good: 1, v: r => r.epa, f: r => fmt(r.epa) },
+    { k: 'cpoe', h: 'CPOE', good: 1, v: r => r.cpoe, f: r => fmt(r.cpoe, 1) },
+    { k: 'sr', h: 'Success', good: 1, v: r => r.sr, f: r => pct(r.sr) },
+    { k: 'db', h: 'Dropbacks', v: r => r.db, f: r => r.db },
+  ], rows, 'qbs');
+}
+
+T.forEach((t, i) => $('#trTeam').add(new Option(t.name, i)));
+$('#trTeam').onchange = () => render();
+function renderTrend() {
+  const ti = +$('#trTeam').value, wk = {};
+  for (const p of P) {
+    if (!keep(p, true) || (p[OFF] !== ti && p[DEF] !== ti)) continue;
+    const w = wk[p[W]] ||= { off: agg(), def: agg(), opp: null };
+    if (p[OFF] === ti) { add(w.off, p); w.opp = p[DEF]; } else { add(w.def, p); w.opp = p[OFF]; }
+  }
+  const weeks = Object.keys(wk).map(Number).sort((a, b) => a - b).filter(w => wk[w].off.n && wk[w].def.n);
+  const host = $('#trend'); host.innerHTML = '';
+  if (!weeks.length) { host.innerHTML = '<p class="note">No plays match these filters.</p>'; return; }
+  const off = weeks.map(w => wk[w].off.epa / wk[w].off.n), def = weeks.map(w => wk[w].def.epa / wk[w].def.n);
+  const roll = a => a.map((_, i) => { const s = a.slice(Math.max(0, i - 2), i + 1); return s.reduce((x, y) => x + y, 0) / s.length; });
+  const Wd = 900, H = 380, m = { l: 52, r: 16, t: 16, b: 40 };
+  const svg = el('svg', { viewBox: `0 0 ${Wd} ${H}`, width: '100%' }, host);
+  const [y0, y1] = extent([...off, ...def, 0], 0.1);
+  const sx = i => m.l + (weeks.length === 1 ? 0.5 : i / (weeks.length - 1)) * (Wd - m.l - m.r);
+  const sy = v => H - m.b - (v - y0) / (y1 - y0) * (H - m.t - m.b);
+  const g = el('g', { class: 'axis' }, svg);
+  for (const v of ticks(y0, y1)) { el('line', { x1: m.l, x2: Wd - m.r, y1: sy(v), y2: sy(v) }, g);
+    el('text', { x: m.l - 6, y: sy(v) + 4, 'text-anchor': 'end', class: 'tick' }, g).textContent = v.toFixed(2); }
+  el('line', { x1: m.l, x2: Wd - m.r, y1: sy(0), y2: sy(0), stroke: 'var(--muted)' }, svg);
+  weeks.forEach((w, i) => el('text', { x: sx(i), y: H - m.b + 16, 'text-anchor': 'middle', class: 'tick' }, svg).textContent =
+    `${w} ${T[wk[w].opp].abbr}`);
+  el('text', { x: (m.l + Wd - m.r) / 2, y: H - 4, 'text-anchor': 'middle', class: 'tick', 'font-weight': 600 }, svg).textContent = 'Week · opponent';
+  const line = (a, color, w, dash) => el('path', { d: a.map((v, i) => (i ? 'L' : 'M') + sx(i) + ' ' + sy(v)).join(''),
+    fill: 'none', stroke: color, 'stroke-width': w, 'stroke-dasharray': dash || '', opacity: w < 2 ? .45 : 1 }, svg);
+  line(off, 'var(--accent)', 1.25); line(def, 'var(--bad)', 1.25);
+  line(roll(off), 'var(--accent)', 3); line(roll(def), 'var(--bad)', 3);
+  weeks.forEach((w, i) => {
+    for (const [v, c] of [[off[i], 'var(--accent)'], [def[i], 'var(--bad)']]) {
+      const d = el('circle', { cx: sx(i), cy: sy(v), r: 4, fill: c }, svg);
+      d.onmousemove = e => showTip(e, `<b>Week ${w} vs ${T[wk[w].opp].abbr}</b><br>Off EPA/play ${fmt(off[i])}<br>Def EPA/play ${fmt(def[i])}`);
+      d.onmouseleave = hideTip;
+    }
+  });
+}
+
+// ---------- tendencies ----------
+function renderTend() {
+  const z = () => ({ n: 0, pass: 0, xp: 0, xn: 0, sg: 0, nh: 0, ch: 0, mo: 0, rpo: 0, scr: 0,
+    db: 0, dbCh: 0, pa: agg(), nopa: agg(), mot: agg(), nomot: agg(), all: agg(),
+    dDb: 0, blitz: agg(), noblitz: agg(), dAll: agg() });
+  const S = T.map(z);
+  for (const p of P) {
+    if (!keep(p, false, true)) continue;
+    const o = S[p[OFF]], d = S[p[DEF]], f = p[FL], ch = f & CHARTED;
+    o.n++; o.pass += p[PS]; add(o.all, p);
+    if (p[XP] != null) { o.xp += p[XP]; o.xn++; o._pass = (o._pass || 0) + p[PS]; }
+    if (f & SHOTGUN) o.sg++; if (f & NOHUDDLE) o.nh++;
+    if (ch) { o.ch++; if (f & MOTION) { o.mo++; add(o.mot, p); } else add(o.nomot, p);
+      if (f & RPO) o.rpo++; if (f & SCREEN) o.scr++; }
+    if (p[PS]) { o.db++; if (ch) { o.dbCh++; add(f & PA ? o.pa : o.nopa, p); }
+      d.dDb++; if (ch) add(f & BLITZ ? d.blitz : d.noblitz, p); }
+    add(d.dAll, p);
+  }
+  const m = a => a.n ? a.epa / a.n : NaN, rt = (a, b) => b ? a / b : NaN;
+  const rows = T.map((t, i) => { const s = S[i]; return { t,
+    proe: s.xn ? (s._pass - s.xp) / s.xn : NaN, passRate: rt(s.pass, s.n), offEpa: m(s.all),
+    sg: rt(s.sg, s.n), nh: rt(s.nh, s.n), mo: rt(s.mo, s.ch), rpo: rt(s.rpo, s.ch), scr: rt(s.scr, s.dbCh),
+    pa: rt(s.pa.n, s.dbCh), paEpa: m(s.pa), noPaEpa: m(s.nopa), motEpa: m(s.mot), noMotEpa: m(s.nomot),
+    blitz: rt(s.blitz.n, s.blitz.n + s.noblitz.n), blitzEpa: m(s.blitz), noBlitzEpa: m(s.noblitz), defEpa: m(s.dAll) }; });
+  const live = rows.filter(r => !isNaN(r.proe));
+  if (!live.length) { $('#proe').innerHTML = '<p class="note">No plays match these filters.</p>'; return; }
+  const avgEpa = live.reduce((a, r) => a + r.offEpa, 0) / live.length;
+  scatter($('#proe'), live.map(r => ({ x: 100 * r.proe, y: r.offEpa, logo: r.t.logo, color: r.t.color, label: r.t.logo ? '' : r.t.abbr,
+    tip: `<b>${r.t.name}</b><br>PROE ${fmt(100 * r.proe, 1)}%<br>Pass rate ${pct(r.passRate)}<br>Off EPA/play ${fmt(r.offEpa)}` })),
+    { h: 500, xl: 'Pass rate over expected (pct pts) →', yl: 'Offense EPA/play →', xf: v => v.toFixed(0), yf: v => v.toFixed(2),
+      mx: 0, my: avgEpa, quads: ['Run-heavy, efficient', 'Pass-heavy, efficient', 'Run-heavy, inefficient', 'Pass-heavy, inefficient'] });
+  const p1 = x => isNaN(x) ? '–' : (x > 0 ? '+' : '') + (100 * x).toFixed(1);
+  table($('#tendTbl'), [
+    { k: 'team', h: 'Team', l: 1, cls: 'team', v: r => r.t.abbr, f: r => teamCell(r.t) },
+    { k: 'proe', h: 'PROE', v: r => r.proe, f: r => p1(r.proe), title: 'Pass rate over expected, percentage points' },
+    { k: 'passRate', h: 'Pass rate', v: r => r.passRate, f: r => pct(r.passRate) },
+    { k: 'sg', h: 'Shotgun', v: r => r.sg, f: r => pct(r.sg) },
+    { k: 'nh', h: 'No-huddle', v: r => r.nh, f: r => pct(r.nh) },
+    { k: 'mo', h: 'Motion', v: r => r.mo, f: r => pct(r.mo) },
+    { k: 'motEpa', h: 'Motion EPA', good: 1, v: r => r.motEpa, f: r => fmt(r.motEpa) },
+    { k: 'noMotEpa', h: 'No-motion EPA', good: 1, v: r => r.noMotEpa, f: r => fmt(r.noMotEpa) },
+    { k: 'pa', h: 'PA rate', v: r => r.pa, f: r => pct(r.pa), title: 'Play-action share of dropbacks' },
+    { k: 'paEpa', h: 'PA EPA', good: 1, v: r => r.paEpa, f: r => fmt(r.paEpa) },
+    { k: 'noPaEpa', h: 'No-PA EPA', good: 1, v: r => r.noPaEpa, f: r => fmt(r.noPaEpa) },
+    { k: 'rpo', h: 'RPO', v: r => r.rpo, f: r => pct(r.rpo) },
+    { k: 'scr', h: 'Screen', v: r => r.scr, f: r => pct(r.scr), title: 'Screen share of dropbacks' },
+  ], rows, 'tend');
+  table($('#tendDTbl'), [
+    { k: 'team', h: 'Team', l: 1, cls: 'team', v: r => r.t.abbr, f: r => teamCell(r.t) },
+    { k: 'blitz', h: 'Blitz rate', v: r => r.blitz, f: r => pct(r.blitz) },
+    { k: 'blitzEpa', h: 'EPA allowed (blitz)', good: -1, v: r => r.blitzEpa, f: r => fmt(r.blitzEpa) },
+    { k: 'noBlitzEpa', h: 'EPA allowed (no blitz)', good: -1, v: r => r.noBlitzEpa, f: r => fmt(r.noBlitzEpa) },
+    { k: 'defEpa', h: 'Def EPA (all)', good: -1, v: r => r.defEpa, f: r => fmt(r.defEpa) },
+  ], rows, 'tendD');
+}
+if (!D.meta.charting) $('#chartNote').textContent = 'FTN charting is not available for this season, so motion / play-action / RPO / screen / blitz columns are blank.';
+
+// ---------- 4th downs ----------
+const [F_W, F_T, F_O, F_YTG, F_YL, F_WP, F_GO, F_XGO, F_CONV, F_EPA, F_POST, F_Q, F_SD, F_PT, F_SECS] = [...Array(15).keys()];
+if (D.meta.fourthModel) $('#fourthNote').textContent =
+  `Go over expected = actual go-for-it attempts minus what a typical ${D.meta.fourthModel[0]}–${D.meta.fourthModel.at(-1)} team would have done in the same spots (distance, field position, score, clock, win prob). It measures aggressiveness vs. league habit, not whether going was optimal. Uses the Weeks and Win prob filters.`;
+function keep4(f) {
+  if (f[F_W] < state.from || f[F_W] > state.to) return false;
+  if (f[F_POST] && !state.post) return false;
+  if (state.wp > 0 && (f[F_WP] < state.wp || f[F_WP] > 1 - state.wp)) return false;
+  return true;
+}
+const field = yl => yl === 50 ? 'midfield' : yl > 50 ? `own ${100 - yl}` : `opp ${yl}`;
+const clock = f => { const s = f[F_Q] <= 4 ? f[F_SECS] - (4 - f[F_Q]) * 900 : f[F_SECS]; return `Q${f[F_Q] > 4 ? 'OT' : f[F_Q]} ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+const scoreTxt = sd => sd === 0 ? 'tied' : sd > 0 ? `up ${sd}` : `down ${-sd}`;
+const callTxt = f => ['Pass', 'Run', 'Punt', 'FG'][f[F_PT]] + (f[F_GO] ? (f[F_CONV] ? ' ✓' : ' ✗') : '');
+function renderFourth() {
+  const S = T.map(() => ({ n: 0, go: 0, xgo: 0, conv: 0, epa: 0 }));
+  const sel = F4.filter(keep4);
+  for (const f of sel) { const s = S[f[F_T]]; s.n++; s.xgo += f[F_XGO];
+    if (f[F_GO]) { s.go++; s.conv += f[F_CONV]; s.epa += f[F_EPA]; } }
+  const rows = T.map((t, i) => { const s = S[i]; return { t, n: s.n, go: s.go, xgo: s.xgo, goe: s.go - s.xgo,
+    goRate: s.n ? s.go / s.n : NaN, xgoRate: s.n ? s.xgo / s.n : NaN, conv: s.go ? s.conv / s.go : NaN, epa: s.go ? s.epa / s.go : NaN }; });
+  // diverging bars
+  const host = $('#goeBars'); host.innerHTML = '';
+  const br = rows.filter(r => r.n).sort((a, b) => b.goe - a.goe);
+  if (!br.length) { host.innerHTML = '<p class="note">No 4th downs match these filters.</p>'; }
+  else {
+    const Wd = 900, rh = 20, m = { l: 60, r: 60, t: 22, b: 22 }, H = m.t + m.b + br.length * rh;
+    const svg = el('svg', { viewBox: `0 0 ${Wd} ${H}`, width: '100%' }, host);
+    const mx = Math.max(1, ...br.map(r => Math.abs(r.goe))), c = (m.l + Wd - m.r) / 2, sc = (Wd - m.l - m.r) / 2 / mx;
+    el('line', { x1: c, x2: c, y1: 0, y2: H, stroke: 'var(--muted)' }, svg);
+    br.forEach((r, i) => { const y = m.t + i * rh, w = r.goe * sc, g = el('g', {}, svg);
+      el('rect', { x: w >= 0 ? c : c + w, y: y + 3, width: Math.abs(w), height: rh - 6, rx: 3, fill: w >= 0 ? 'var(--good)' : 'var(--bad)', opacity: .85 }, g);
+      if (r.t.logo) el('image', { href: r.t.logo, x: w >= 0 ? c - 22 : c + 4, y: y + 1, width: 18, height: 18 }, g);
+      el('text', { x: w >= 0 ? c + w + 6 : c + w - 6, y: y + rh / 2 + 4, 'text-anchor': w >= 0 ? 'start' : 'end', 'font-size': 11 }, g).textContent =
+        `${r.t.abbr} ${r.goe > 0 ? '+' : ''}${r.goe.toFixed(1)}`;
+      el('rect', { x: m.l, y, width: Wd - m.l - m.r, height: rh, fill: 'transparent' }, g);
+      g.onmousemove = e => showTip(e, `<b>${r.t.name}</b><br>${r.go} go attempts vs ${r.xgo.toFixed(1)} expected<br>on ${r.n} 4th downs`); g.onmouseleave = hideTip; });
+    el('text', { x: Wd - m.r, y: 12, 'text-anchor': 'end', class: 'quad' }, svg).textContent = 'more aggressive →';
+    el('text', { x: m.l, y: H - 6, class: 'quad' }, svg).textContent = '← more conservative';
+  }
+  table($('#fourthTbl'), [
+    { k: 'team', h: 'Team', l: 1, cls: 'team', v: r => r.t.abbr, f: r => teamCell(r.t) },
+    { k: 'goe', h: 'Go over exp.', good: 1, v: r => r.goe, f: r => (r.goe > 0 ? '+' : '') + r.goe.toFixed(1) },
+    { k: 'go', h: 'Go att.', v: r => r.go, f: r => r.go },
+    { k: 'xgo', h: 'Expected', v: r => r.xgo, f: r => r.xgo.toFixed(1) },
+    { k: 'n', h: '4th downs', v: r => r.n, f: r => r.n },
+    { k: 'goRate', h: 'Go rate', v: r => r.goRate, f: r => pct(r.goRate) },
+    { k: 'xgoRate', h: 'Exp. go rate', v: r => r.xgoRate, f: r => pct(r.xgoRate) },
+    { k: 'conv', h: 'Conv. rate', good: 1, v: r => r.conv, f: r => pct(r.conv) },
+    { k: 'epa', h: 'EPA/attempt', good: 1, v: r => r.epa, f: r => fmt(r.epa) },
+  ], rows, 'fourth');
+  const list = (host, items) => { host.innerHTML = '<thead><tr><th class="l">Wk</th><th class="l">Team</th><th class="l">Situation</th><th class="l">Game</th><th class="l">Call</th><th>Exp. go</th></tr></thead><tbody>' +
+    items.map(f => `<tr><td class="l">${f[F_W]}</td><td class="team">${teamCell(T[f[F_T]])}<span class="sub">vs ${T[f[F_O]].abbr}</span></td>` +
+      `<td class="l">4th &amp; ${f[F_YTG]}, ${field(f[F_YL])}</td><td class="l">${clock(f)}, ${scoreTxt(f[F_SD])}</td>` +
+      `<td class="l">${callTxt(f)}</td><td>${pct(f[F_XGO])}</td></tr>`).join('') + '</tbody>'; };
+  list($('#gutsy'), sel.filter(f => f[F_GO]).sort((a, b) => a[F_XGO] - b[F_XGO]).slice(0, 10));
+  list($('#timid'), sel.filter(f => !f[F_GO]).sort((a, b) => b[F_XGO] - a[F_XGO]).slice(0, 10));
+}
+
+// ---------- pick'em ----------
+const PK = D.pickem;
+const TM = Object.fromEntries(T.map(t => [t.abbr, t]));
+let pkMode = 'ats', leagueLines = {};
+try { const s = JSON.parse(localStorage.getItem('pickem') || '{}'); pkMode = s.mode || 'ats'; leagueLines = s.lines || {}; } catch {}
+const savePk = () => { try { localStorage.setItem('pickem', JSON.stringify({ mode: pkMode, lines: leagueLines })); } catch {} };
+$('#pkMode').onclick = e => { const b = e.target.closest('button'); if (!b) return; pkMode = b.dataset.v; savePk(); render(); };
+// spread convention from nflverse: + = home favored. Display as standard book notation.
+const lineTxt = (fav, pts) => pts === 0 ? 'PK' : `${fav} −${Math.abs(pts)}`;
+const homeLine = sp => sp == null ? '' : sp === 0 ? 'PK' : (sp > 0 ? '−' : '+') + Math.abs(sp);
+const AW = PK ? Object.fromEntries(PK.angles.map(a => [a.key, a])) : {};
+
+function analyzeGame(gm) {
+  const cur = gm.spread;                                    // + = home favored
+  const lg = leagueLines[gm.id];                            // user entered in home notation (−3 = home fav by 3)
+  const league = lg == null || lg === '' || isNaN(+lg) ? null : -(+lg);
+  const line = league ?? cur;                               // line we're picking against
+  const side = { home: [], away: [] };
+  const add = (s, key) => side[s].push({ key, label: AW[key]?.label || key });
+  // order must match side_keys() in build_data.py
+  if (gm.homeLast && gm.homeLast[2] <= -20) add('home', 'bounce');
+  if (gm.awayLast && gm.awayLast[2] <= -20) add('away', 'bounce');
+  if (line != null && line !== 0) {
+    const dog = line > 0 ? 'away' : 'home';
+    if (gm.div) add(dog, 'divdog');
+    if (Math.abs(line) >= 7) add(dog, 'bigdog');
+  }
+  if (!gm.neutral) add('away', 'road');
+  // Look up how this exact combination of angles has actually covered (angles overlap; they don't add).
+  const sig = side.home.map(x => x.key).join(',') + '|' + side.away.map(x => x.key).join(',');
+  const c = (PK.combos || {})[sig] || [0, 0, 0, 0];
+  const SHRINK = 150;                                       // pull small samples toward 50%
+  const pHomeCov = (c[0] + 0.5 * SHRINK) / (c[1] + SHRINK);
+  const combo = { n: c[1], raw: c[1] ? c[0] / c[1] : null, late: c[3] ? c[2] / c[3] : null, nLate: c[3], pHomeCov };
+  let signed = pHomeCov - 0.5;                              // + favors home
+  let move = null;
+  if (league != null && cur != null && cur !== league) {
+    move = cur - league;                                    // >0: market moved toward home
+    // crosses a key number if 3 or 7 sits between the two lines (same favorite) or the favorite flipped
+    const lo = Math.min(Math.abs(cur), Math.abs(league)), hi = Math.max(Math.abs(cur), Math.abs(league));
+    const pts = Math.abs(move), crosses = Math.sign(cur) !== Math.sign(league) || [3, 7].some(k => lo < k && k <= hi);
+    const e = Math.min(0.15, pts * 0.022 + (crosses ? 0.03 : 0));
+    side[move > 0 ? 'home' : 'away'].push({ key: 'move', label: `Line moved ${pts} pt${pts === 1 ? '' : 's'}`, edge: e });
+    signed += move > 0 ? e : -e;
+  }
+  return { side, line, league, move, combo, lean: signed >= 0 ? 'home' : 'away', edge: Math.abs(signed) };
+}
+
+function renderPickem() {
+  if (!PK) { $('#pkGames').innerHTML = '<p class="note">No upcoming games found. Run ./update.sh during the season.</p>'; return; }
+  for (const b of $('#pkMode').children) b.classList.toggle('on', b.dataset.v === pkMode);
+  $('#pkTitle').textContent = `Week ${PK.week} pick'em helper`;
+  $('#pkNote').textContent = pkMode === 'ats'
+    ? 'Each lean comes from how this exact combination of angles has covered since 1999 (small samples are pulled toward 50%), plus line movement if you enter your league\'s line. Est. edge = how far above 50% that side is expected to cover. Under 1.5% is a coin flip.'
+    : 'Win probabilities come from the betting market (moneyline with the bookmaker margin removed), which is the best public forecast. In a big pool, a close game where the underdog has 40%+ is a reasonable place to differ from the crowd.';
+  const host = $('#pkGames');
+  host.innerHTML = PK.games.map(gm => {
+    const A = analyzeGame(gm), h = TM[gm.home] || { abbr: gm.home }, a = TM[gm.away] || { abbr: gm.away };
+    const tm_ = s => s === 'home' ? h.abbr : a.abbr;
+    const final = gm.homeScore != null;
+    const t = new Date(`${gm.date}T${gm.time}:00`);
+    const when = `${gm.day.slice(0, 3)} ${t.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}<br>${gm.time} ET${gm.neutral ? '<br>neutral' : ''}${gm.div ? '<br>division' : ''}`;
+    const logo = tm => tm.logo ? `<img src="${tm.logo}" alt="">` : '';
+    let pickSide, leanHtml;
+    if (pkMode === 'ats') {
+      pickSide = A.lean;
+      const tm = pickSide === 'home' ? h : a, ln = A.line == null ? '' : homeLine(pickSide === 'home' ? A.line : -A.line);
+      const str = A.edge < 0.015 ? 'coin flip' : A.edge < 0.03 ? 'slight lean' : 'stronger lean';
+      const C = A.combo, cs = pickSide === 'home' ? 1 : -1;
+      const pr = v => v == null ? '–' : pct(cs > 0 ? v : 1 - v);
+      const comboTxt = C.n ? `<div class="g-model">This combination: ${tm_(pickSide)} side covered ${pr(C.raw)} of ${C.n.toLocaleString()} games (since 2013: ${pr(C.late)} of ${C.nLate})</div>`
+                           : '<div class="g-model">No past games with this combination</div>';
+      let res = '';
+      if (final && A.line != null) {
+        const ats = (gm.homeScore - gm.awayScore) - A.line;
+        res = ats === 0 ? '<div class="res">push</div>' : ((ats > 0) === (pickSide === 'home') ? '<div class="res w">✓ covered</div>' : '<div class="res l">✗ didn\'t cover</div>');
+      }
+      leanHtml = `<div class="big">${tm.abbr} ${ln}</div><div class="str">${str} · est. edge +${(100 * A.edge).toFixed(1)}%</div>${res}${comboTxt}
+        <div class="g-model">EPA model: ${lineTxt(gm.model >= 0 ? gm.home : gm.away, Math.abs(gm.model).toFixed(1))} (no proven edge)</div>`;
+    } else {
+      const p = gm.pHome;
+      pickSide = p == null ? 'home' : p >= 0.5 ? 'home' : 'away';
+      const pp = p == null ? null : pickSide === 'home' ? p : 1 - p, tm = pickSide === 'home' ? h : a;
+      const upset = pp != null && pp < 0.6 ? '<div class="str">close game: underdog wins 40%+ of the time</div>' : '';
+      let res = '';
+      if (final) { const hw = gm.homeScore > gm.awayScore; res = gm.homeScore === gm.awayScore ? '<div class="res">tie</div>' : (hw === (pickSide === 'home') ? '<div class="res w">✓ won</div>' : '<div class="res l">✗ lost</div>'); }
+      leanHtml = `<div class="big">${tm.abbr}</div><div class="str">${pp == null ? '' : `wins ${(100 * pp).toFixed(0)}% per market`}</div>${upset}${res}`;
+    }
+    const chips = s => A.side[s].map(x => `<span class="chip ${x.key === 'move' ? 'mv' : ''}" title="${AW[x.key]?.desc || 'Market moved toward this side after your league set its line'}"><b>${(s === 'home' ? h : a).abbr}</b> ${x.label}${x.edge ? ` +${(100 * x.edge).toFixed(1)}%` : ''}</span>`).join('');
+    const angles = pkMode === 'ats' ? `<div class="chips">${chips('away')}${chips('home')}</div>` : '';
+    const lg = leagueLines[gm.id] ?? '';
+    const mv = A.move == null ? '' : `<div class="mv">market now ${homeLine(gm.spread)} → ${A.move > 0 ? h.abbr : a.abbr} getting value</div>`;
+    const leagueBox = pkMode === 'ats' ? `<div class="g-league"><label for="lg-${gm.id}">Your league's line, ${h.abbr}</label>
+        <input type="number" step="0.5" id="lg-${gm.id}" data-id="${gm.id}" value="${lg}" placeholder="${homeLine(gm.spread)}">${mv}</div>` : '<div></div>';
+    const teamRow = (tm, s, score) => `<div class="g-team ${s === pickSide ? 'pick' : ''}">${logo(tm)}<span>${tm.abbr}</span>
+        <span class="ln">${s === 'home' ? homeLine(gm.spread) : homeLine(gm.spread == null ? null : -gm.spread)}</span>${score != null ? `<span class="sc">${score}</span>` : ''}</div>`;
+    return `<div class="game ${final ? 'final' : ''}">
+      <div class="g-time">${when}${final ? '<br><b>Final</b>' : ''}</div>
+      <div class="g-teams">${teamRow(a, 'away', gm.awayScore)}${teamRow(h, 'home', gm.homeScore)}</div>
+      ${leagueBox}
+      <div class="g-angles">${angles}</div>
+      <div class="g-lean">${leanHtml}</div>
+    </div>`;
+  }).join('');
+  host.querySelectorAll('.g-league input').forEach(inp => inp.onchange = () => {
+    const v = inp.value.trim(); if (v === '') delete leagueLines[inp.dataset.id]; else leagueLines[inp.dataset.id] = v;
+    savePk(); render(); });
+  $('#pkAngles').innerHTML = '<thead><tr><th class="l">Angle</th><th class="l">When it applies</th><th>Cover rate</th><th>1999–2012</th><th>2013–now</th><th>Games</th></tr></thead><tbody>' +
+    PK.angles.map(x => `<tr><td class="l"><b>${x.label}</b></td><td class="l">${x.desc}</td><td>${pct(x.rate)}</td><td>${pct(x.early)}</td><td>${pct(x.late)}</td><td>${x.n.toLocaleString()}</td></tr>`).join('') + '</tbody>';
+}
+
+// ---------- matchup: how an opponent plays a team vs. how it plays everyone else ----------
+const [HALF, HSEC, YDS, BOX, RUSH] = [12, 13, 14, 15, 16];
+// charted coverage tags (optional snapshot; -1 = untagged): coverage, man/zone, def personnel, off personnel, run concept, pressure bits
+const [SCOV, SMZ, SDP, SOP, SRUN, SPT] = [17, 18, 19, 20, 21, 22];
+const HAS_TAGS = !!D.meta.tags;
+const MU = { team: Math.max(0, T.findIndex(t => t.abbr === 'DAL')), opp: null, sit: 'all', base: 'pre' };
+try { Object.assign(MU, JSON.parse(localStorage.getItem('matchup') || '{}')); } catch {}
+const saveMU = () => { try { localStorage.setItem('matchup', JSON.stringify(MU)); } catch {} };
+// week -> opponent, per team
+const G = T.map(() => new Map());
+for (const p of P) { G[p[OFF]].set(p[W], p[DEF]); G[p[DEF]].set(p[W], p[OFF]); }
+const ch = p => p[FL] & CHARTED;
+const bit = b => p => p[FL] & b ? 1 : 0;
+const OFF_M = [
+  { k: 'sr', h: 'Success rate', t: 'rate', sel: () => 1, val: p => p[EPA] > 0 ? 1 : 0 },
+  { k: 'epa', h: 'EPA/play', t: 'epa', sel: () => 1, val: p => p[EPA] },
+  { k: 'pepa', h: 'Pass EPA/play', t: 'epa', sel: p => p[PS], val: p => p[EPA] },
+  { k: 'repa', h: 'Run EPA/play', t: 'epa', sel: p => !p[PS], val: p => p[EPA] },
+  { k: 'expl', h: 'Explosive plays', t: 'rate', title: 'Pass 20+ yards or run 10+ yards', sel: () => 1, val: p => (p[PS] ? p[YDS] >= 20 : p[YDS] >= 10) ? 1 : 0 },
+  { k: 'pr', h: 'Pass rate', t: 'rate', sel: () => 1, val: p => p[PS] },
+  { k: 'proe', h: 'Pass rate over expected', t: 'pp', sel: p => p[XP] != null, val: p => p[PS] - p[XP] },
+  { k: 'sg', h: 'Shotgun', t: 'rate', sel: () => 1, val: bit(SHOTGUN) },
+  { k: 'nh', h: 'No-huddle', t: 'rate', sel: () => 1, val: bit(NOHUDDLE) },
+  { k: 'mo', h: 'Motion', t: 'rate', ftn: 1, sel: ch, val: bit(MOTION) },
+  { k: 'pa', h: 'Play-action (of dropbacks)', t: 'rate', ftn: 1, sel: p => ch(p) && p[PS], val: bit(PA) },
+  { k: 'rpo', h: 'RPO', t: 'rate', ftn: 1, sel: ch, val: bit(RPO) },
+  { k: 'scr', h: 'Screens (of dropbacks)', t: 'rate', ftn: 1, sel: p => ch(p) && p[PS], val: bit(SCREEN) },
+  { k: 'p11', h: '11 personnel', t: 'rate', tags: 1, sel: p => p[SOP] >= 0, val: p => p[SOP] === 11 ? 1 : 0 },
+  { k: 'p12', h: '12 personnel', t: 'rate', tags: 1, sel: p => p[SOP] >= 0, val: p => p[SOP] === 12 ? 1 : 0 },
+  { k: 'pHeavy', h: 'Heavier (13, 21, 22…)', t: 'rate', tags: 1, title: 'Any personnel with 3+ TEs or 2+ RBs', sel: p => p[SOP] >= 0, val: p => p[SOP] >= 13 && (p[SOP] % 10 >= 3 || p[SOP] >= 20) ? 1 : 0 },
+  { k: 'epaMan', h: 'EPA/dropback vs man', t: 'epa', tags: 1, sel: p => p[PS] && p[SMZ] === 1, val: p => p[EPA] },
+  { k: 'epaZone', h: 'EPA/dropback vs zone', t: 'epa', tags: 1, sel: p => p[PS] && p[SMZ] === 0, val: p => p[EPA] },
+  { k: 'oz', h: 'Outside zone (of runs)', t: 'rate', tags: 1, sel: p => !p[PS] && p[SRUN] >= 0, val: p => p[SRUN] === 0 ? 1 : 0 },
+  { k: 'iz', h: 'Inside zone (of runs)', t: 'rate', tags: 1, sel: p => !p[PS] && p[SRUN] >= 0, val: p => p[SRUN] === 1 ? 1 : 0 },
+  { k: 'gap', h: 'Gap schemes (of runs)', t: 'rate', tags: 1, title: 'Power, pull lead, counter, trap', sel: p => !p[PS] && p[SRUN] >= 0, val: p => p[SRUN] >= 2 && p[SRUN] <= 5 ? 1 : 0 },
+];
+const DEF_M = [
+  { k: 'sr', h: 'Success rate allowed', t: 'rate', sel: () => 1, val: p => p[EPA] > 0 ? 1 : 0 },
+  { k: 'epa', h: 'EPA/play allowed', t: 'epa', sel: () => 1, val: p => p[EPA] },
+  { k: 'pepa', h: 'Pass EPA allowed', t: 'epa', sel: p => p[PS], val: p => p[EPA] },
+  { k: 'repa', h: 'Run EPA allowed', t: 'epa', sel: p => !p[PS], val: p => p[EPA] },
+  { k: 'expl', h: 'Explosive plays allowed', t: 'rate', title: 'Pass 20+ yards or run 10+ yards', sel: () => 1, val: p => (p[PS] ? p[YDS] >= 20 : p[YDS] >= 10) ? 1 : 0 },
+  { k: 'blitz', h: 'Blitz rate (of dropbacks)', t: 'rate', ftn: 1, title: 'FTN blitz = 5 or more pass rushers', sel: p => ch(p) && p[PS], val: bit(BLITZ) },
+  { k: 'rush', h: 'Avg pass rushers', t: 'num', ftn: 1, sel: p => p[PS] && p[RUSH] >= 0, val: p => p[RUSH] },
+  { k: 'box', h: 'Avg defenders in box', t: 'num', ftn: 1, sel: p => p[BOX] >= 0, val: p => p[BOX] },
+  { k: 'heavy', h: 'Heavy box (8+)', t: 'rate', ftn: 1, sel: p => p[BOX] >= 0, val: p => p[BOX] >= 8 ? 1 : 0 },
+  { k: 'light', h: 'Light box (6 or fewer)', t: 'rate', ftn: 1, sel: p => p[BOX] >= 0, val: p => p[BOX] <= 6 ? 1 : 0 },
+  { k: 'heavyRun', h: 'Heavy box on runs', t: 'rate', ftn: 1, sel: p => !p[PS] && p[BOX] >= 0, val: p => p[BOX] >= 8 ? 1 : 0 },
+  { k: 'man', h: 'Man coverage (of dropbacks)', t: 'rate', tags: 1, sel: p => p[PS] && (p[SMZ] === 0 || p[SMZ] === 1), val: p => p[SMZ] === 1 ? 1 : 0 },
+  { k: 'c0', h: 'Cover 0', t: 'rate', tags: 1, sel: p => p[PS] && p[SCOV] >= 0, val: p => p[SCOV] === 0 ? 1 : 0 },
+  { k: 'c1', h: 'Cover 1', t: 'rate', tags: 1, sel: p => p[PS] && p[SCOV] >= 0, val: p => p[SCOV] === 1 ? 1 : 0 },
+  { k: 'c3', h: 'Cover 3', t: 'rate', tags: 1, sel: p => p[PS] && p[SCOV] >= 0, val: p => p[SCOV] === 3 ? 1 : 0 },
+  { k: 'twoHigh', h: 'Two-high (Cover 2, 4, 6)', t: 'rate', tags: 1, sel: p => p[PS] && p[SCOV] >= 0, val: p => [2, 4, 5].includes(p[SCOV]) ? 1 : 0 },
+  { k: 'nickel', h: 'Nickel (5 DBs)', t: 'rate', tags: 1, sel: p => p[SDP] >= 0, val: p => p[SDP] === 1 ? 1 : 0 },
+  { k: 'dime', h: 'Dime (6 DBs)', t: 'rate', tags: 1, sel: p => p[SDP] >= 0, val: p => p[SDP] === 2 ? 1 : 0 },
+  { k: 'stunt', h: 'Stunts (of dropbacks)', t: 'rate', tags: 1, sel: p => p[PS] && p[SPT] >= 0, val: p => p[SPT] & 2 ? 1 : 0 },
+];
+function mstats(defs, plays) {
+  const o = defs.map(() => ({ n: 0, s: 0, q: 0 }));
+  for (const p of plays) for (let i = 0; i < defs.length; i++) { if (!defs[i].sel(p)) continue;
+    const v = defs[i].val(p); o[i].n++; o[i].s += v; o[i].q += v * v; }
+  return o.map(x => ({ n: x.n, m: x.n ? x.s / x.n : NaN, v: x.n > 1 ? (x.q - x.s * x.s / x.n) / (x.n - 1) : NaN }));
+}
+const muVal = (d, m) => isNaN(m) ? '–' : d.t === 'rate' ? (100 * m).toFixed(1) + '%' : d.t === 'pp' ? fmt(100 * m, 1) : d.t === 'num' ? m.toFixed(2) : fmt(m);
+const muDelta = (d, a, b) => { if (isNaN(a) || isNaN(b)) return '–'; const x = b - a;
+  return d.t === 'rate' || d.t === 'pp' ? `${x > 0 ? '+' : ''}${(100 * x).toFixed(1)} pp` : d.t === 'num' ? `${x > 0 ? '+' : ''}${x.toFixed(2)}` : fmt(x); };
+// z-score of a change; rates use a pooled proportion so 0% or 100% samples aren't overconfident
+function zScore(a, b, d) {
+  if (d && (d.t === 'rate')) { const pp = (a.m * a.n + b.m * b.n) / (a.n + b.n);
+    return Math.abs(b.m - a.m) / Math.sqrt(pp * (1 - pp) * (1 / a.n + 1 / b.n) || 1e-9); }
+  return Math.abs(b.m - a.m) / Math.sqrt(a.v / a.n + b.v / b.n || 1e-9);
+}
+function signal(a, b, d) {
+  if (b.n < 20 || a.n < 20) return '<span class="chip">small sample</span>';
+  if (isNaN(a.m) || isNaN(b.m) || a.m === b.m) return '<span class="note" style="margin:0">within noise</span>';
+  const z = zScore(a, b, d);
+  return z >= 2 ? '<span class="chip mv"><b>clear change</b></span>' : z >= 1.3 ? '<span class="chip">possible</span>' : '<span class="note" style="margin:0">within noise</span>';
+}
+const neutral = p => p[DN] >= 1 && p[DN] <= 2 && p[WP] != null && p[WP] >= 0.2 && p[WP] <= 0.8 && p[HSEC] > 120;
+const sitOk = p => MU.sit === 'all' || neutral(p);
+// plays where `team` is on `side` ('off'|'def'), in the given weeks
+function sidePlays(team, side, weeks) {
+  const col = side === 'off' ? OFF : DEF;
+  return P.filter(p => p[col] === team && weeks.has(p[W]) && sitOk(p));
+}
+
+T.forEach((t, i) => $('#muTeam').add(new Option(t.name, i)));
+function fillOpps() {
+  const sel = $('#muOpp'), ti = MU.team; sel.innerHTML = '';
+  const played = new Map(); for (const [w, o] of G[ti]) { if (!played.has(o)) played.set(o, []); played.get(o).push(w); }
+  const up = (D.pickem?.games || []).find(g => g.homeScore == null && (g.home === T[ti].abbr || g.away === T[ti].abbr));
+  const upOpp = up ? T.findIndex(t => t.abbr === (up.home === T[ti].abbr ? up.away : up.home)) : -1;
+  const g1 = document.createElement('optgroup'); g1.label = 'Played';
+  [...played.entries()].sort((a, b) => Math.max(...b[1]) - Math.max(...a[1])).forEach(([o, ws]) =>
+    g1.appendChild(new Option(`${T[o].abbr}, week ${ws.sort((a, b) => a - b).join(' & ')}`, o)));
+  const g2 = document.createElement('optgroup'); g2.label = 'Preview (not played yet)';
+  if (upOpp >= 0 && !played.has(upOpp)) g2.appendChild(new Option(`${T[upOpp].abbr}, this week`, upOpp));
+  T.forEach((t, i) => { if (i !== ti && i !== upOpp && !played.has(i)) g2.appendChild(new Option(t.abbr, i)); });
+  if (g2.children.length) sel.appendChild(g2); if (g1.children.length) sel.appendChild(g1);
+  const valid = [...sel.options].map(o => +o.value);
+  if (MU.opp == null || !valid.includes(MU.opp) || MU.opp === ti)
+    MU.opp = upOpp >= 0 ? upOpp : (g1.children[0] ? +g1.children[0].value : valid[0]);
+  sel.value = MU.opp;
+}
+$('#muTeam').value = MU.team; fillOpps();
+$('#muTeam').onchange = e => { MU.team = +e.target.value; MU.opp = null; fillOpps(); saveMU(); render(); };
+$('#muOpp').onchange = e => { MU.opp = +e.target.value; saveMU(); render(); };
+$('#muBase').onchange = e => { MU.base = e.target.value; saveMU(); render(); };
+$('#muSit').onclick = e => { const b = e.target.closest('button'); if (!b) return; MU.sit = b.dataset.v; saveMU(); render(); };
+
+// the opponent's own games: everything except meetings with `focus`
+function baselineWeeks(team, focus, before) {
+  return [...G[team].entries()].filter(([w, o]) => o !== focus && (before == null || w < before)).map(([w]) => w).sort((a, b) => a - b);
+}
+const tagHead = (defs, i, cols) => defs[i].tags && !(defs[i - 1] || {}).tags ? `<tr><td class="l" colspan="${cols}" style="padding-top:14px;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.06em">Charted coverage tags · snapshot through week ${D.meta.tags.throughWeek} (games after that show –)</td></tr>` : '';
+const skipRow = d => (!D.meta.charting && d.ftn) || (!HAS_TAGS && d.tags);
+function cmpTable(host, defs, base, last3, game, halves) {
+  const sb = mstats(defs, base), s3 = mstats(defs, last3), sg = mstats(defs, game);
+  const sh = halves.map(h => mstats(defs, h));
+  const noFtn = !D.meta.charting;
+  host.innerHTML = '<thead><tr><th class="l">Metric</th><th>Normal</th><th>n</th><th>Last 3</th><th>This matchup</th><th>n</th><th>Change</th><th class="l">Signal</th><th>1st half</th><th>2nd half</th></tr></thead><tbody>' +
+    defs.map((d, i) => skipRow(d) ? '' : tagHead(defs, i, 10) + `<tr><td class="l" title="${d.title || ''}">${d.h}</td><td>${muVal(d, sb[i].m)}</td><td class="rk">${sb[i].n}</td>
+      <td>${muVal(d, s3[i].m)}</td><td><b>${muVal(d, sg[i].m)}</b></td><td class="rk">${sg[i].n}</td>
+      <td>${muDelta(d, sb[i].m, sg[i].m)}</td><td class="l">${signal(sb[i], sg[i], d)}</td>
+      <td>${muVal(d, sh[0][i].m)}</td><td>${muVal(d, sh[1][i].m)}</td></tr>`).join('') + '</tbody>';
+}
+function previewTable(host, defs, season, last3, league) {
+  const ss = mstats(defs, season), s3 = mstats(defs, last3), sl = mstats(defs, league);
+  host.innerHTML = '<thead><tr><th class="l">Metric</th><th>Season</th><th>n</th><th>Last 3</th><th>League avg</th><th>vs league</th></tr></thead><tbody>' +
+    defs.map((d, i) => skipRow(d) ? '' : tagHead(defs, i, 6) + `<tr><td class="l" title="${d.title || ''}">${d.h}</td><td><b>${muVal(d, ss[i].m)}</b></td><td class="rk">${ss[i].n}</td>
+      <td>${muVal(d, s3[i].m)}</td><td>${muVal(d, sl[i].m)}</td><td>${muDelta(d, sl[i].m, ss[i].m)}</td></tr>`).join('') + '</tbody>';
+}
+
+function renderMatchup() {
+  const ti = MU.team, oi = MU.opp, A = T[ti].abbr, O = T[oi].abbr;
+  for (const b of $('#muSit').children) b.classList.toggle('on', b.dataset.v === MU.sit);
+  $('#muBase').value = MU.base;
+  const meet = [...G[ti].entries()].filter(([, o]) => o === oi).map(([w]) => w).sort((a, b) => a - b);
+  const played = meet.length > 0, first = played ? meet[0] : null;
+  const sitTxt = MU.sit === 'all' ? 'All offensive plays (runs and dropbacks)' : 'Neutral early downs only: 1st & 2nd down, win prob 20–80%, more than 2:00 left in the half';
+  $('#muBaseWrap').hidden = !played;
+  const ws = a => new Set(a);
+  for (const k of [3, 4]) $('#muP' + k).hidden = !played;
+  if (played) {
+    const before = MU.base === 'pre' ? first : null;
+    const ob = baselineWeeks(oi, ti, before), ab = baselineWeeks(ti, oi, before);
+    const ob3 = baselineWeeks(oi, ti, first).slice(-3), ab3 = baselineWeeks(ti, oi, first).slice(-3);
+    $('#muTitle').textContent = `How ${O} played ${A}, week ${meet.join(' & ')}`;
+    $('#muNote').innerHTML = `“Normal” = ${O}'s games against everyone except ${A}, ${MU.base === 'pre' ? `<b>before week ${first}</b> (what you'd have known going in)` : '<b>whole season</b> (includes games after this one)'}: weeks ${ob.join(', ') || 'none'}. “Last 3” = its last three games before the matchup. ${sitTxt}.` +
+      (ob.length < 2 ? ` <b>Only ${ob.length} baseline game${ob.length === 1 ? '' : 's'}, too little to call anything an adjustment.</b>` : '');
+    const gm = ws(meet);
+    const halves = side => [1, 2].map(h => sidePlays(oi, side, gm).filter(p => h === 1 ? p[HALF] === 1 : p[HALF] >= 2));
+    $('#muH1').textContent = `${O} defense vs ${A} offense`;
+    cmpTable($('#muT1'), DEF_M, sidePlays(oi, 'def', ws(ob)), sidePlays(oi, 'def', ws(ob3)), sidePlays(oi, 'def', gm), halves('def'));
+    $('#muH2').textContent = `${O} offense vs ${A} defense`;
+    cmpTable($('#muT2'), OFF_M, sidePlays(oi, 'off', ws(ob)), sidePlays(oi, 'off', ws(ob3)), sidePlays(oi, 'off', gm), halves('off'));
+    const halvesA = side => [1, 2].map(h => sidePlays(ti, side, gm).filter(p => h === 1 ? p[HALF] === 1 : p[HALF] >= 2));
+    $('#muH3').textContent = `${A}'s answer: offense vs its own normal`;
+    cmpTable($('#muT3'), OFF_M, sidePlays(ti, 'off', ws(ab)), sidePlays(ti, 'off', ws(ab3)), sidePlays(ti, 'off', gm), halvesA('off'));
+    $('#muH4').textContent = `${A}'s answer: defense vs its own normal`;
+    cmpTable($('#muT4'), DEF_M, sidePlays(ti, 'def', ws(ab)), sidePlays(ti, 'def', ws(ab3)), sidePlays(ti, 'def', gm), halvesA('def'));
+  } else {
+    const ob = baselineWeeks(oi, ti, null), ob3 = ob.slice(-3);
+    const all = new Set(P.map(p => p[W]));
+    const league = P.filter(p => all.has(p[W]) && sitOk(p));
+    $('#muTitle').textContent = `Preview: ${O} vs ${A}`;
+    $('#muNote').innerHTML = `They haven't played yet, so this shows ${O}'s normal approach (weeks ${ob.join(', ')}) against the league. Pair it with the table at the bottom: what teams usually change when they face ${A}. ${sitTxt}.`;
+    $('#muH1').textContent = `${O} defense: what ${A}'s offense will see`;
+    previewTable($('#muT1'), DEF_M, sidePlays(oi, 'def', ws(ob)), sidePlays(oi, 'def', ws(ob3)), league);
+    $('#muH2').textContent = `${O} offense: what ${A}'s defense will see`;
+    previewTable($('#muT2'), OFF_M, sidePlays(oi, 'off', ws(ob)), sidePlays(oi, 'off', ws(ob3)), league);
+  }
+  for (const k of [1, 2, 3, 4]) $('#muN' + k).textContent = 'Signal compares the matchup to “Normal” given the sample sizes: “clear change” ≈ 2+ standard errors, “possible” ≈ 1.3+. Small samples are descriptive, not proof of a game plan.';
+  if (!played) for (const k of [1, 2]) $('#muN' + k).textContent = 'Last 3 = its three most recent games. Box, rushers, blitz, motion, play-action, RPO and screens come from FTN charting.';
+
+  // every opponent vs the focus team, each against its own pregame baseline
+  $('#muH5').textContent = `Every opponent vs ${A}: what they changed`;
+  const keys = [['blitz', DEF_M], ['rush', DEF_M], ['heavy', DEF_M], ...(HAS_TAGS ? [['man', DEF_M], ['twoHigh', DEF_M]] : []), ['proe', OFF_M], ['mo', OFF_M], ['pa', OFF_M]];
+  const rows = [];
+  for (const [w, o] of [...G[ti].entries()].sort((a, b) => a[0] - b[0])) {
+    const base = baselineWeeks(o, ti, w), gm = new Set([w]);
+    const r = { t: T[o], w, nb: base.length };
+    for (const [k, defs] of keys) { const d = defs.find(x => x.k === k), side = defs === DEF_M ? 'def' : 'off';
+      const [a] = mstats([d], sidePlays(o, side, new Set(base))), [b] = mstats([d], sidePlays(o, side, gm));
+      r[k] = base.length >= 2 ? b.m - a.m : NaN; r[k + 'Sig'] = base.length >= 2 && b.n >= 20 && a.n >= 20 && zScore(a, b, d) >= 2; }
+    const [offA] = mstats([OFF_M[1]], sidePlays(ti, 'off', gm)), [defA] = mstats([DEF_M[1]], sidePlays(ti, 'def', gm));
+    r.aOff = offA.m; r.aDef = defA.m; rows.push(r);
+  }
+  const dfmt = (r, k, mult = 100, dp = 1) => isNaN(r[k]) ? '–' : `<span style="${r[k + 'Sig'] ? 'font-weight:700' : ''}">${r[k] > 0 ? '+' : ''}${(mult * r[k]).toFixed(dp)}</span>`;
+  if (!rows.length) { $('#muAll').innerHTML = '<tbody><tr><td class="l">No games yet.</td></tr></tbody>'; return; }
+  table($('#muAll'), [
+    { k: 'opp', h: 'Opponent', l: 1, cls: 'team', v: r => r.t.abbr, f: r => teamCell(r.t) },
+    { k: 'w', h: 'Wk', v: r => r.w, f: r => r.w },
+    { k: 'blitz', h: 'Blitz Δ', title: 'Blitz rate vs its own pregame baseline, pct pts', v: r => r.blitz, f: r => dfmt(r, 'blitz') },
+    { k: 'rush', h: 'Rushers Δ', title: 'Average pass rushers vs its baseline', v: r => r.rush, f: r => dfmt(r, 'rush', 1, 2) },
+    { k: 'heavy', h: 'Heavy box Δ', title: '8+ in the box, pct pts', v: r => r.heavy, f: r => dfmt(r, 'heavy') },
+    ...(HAS_TAGS ? [
+      { k: 'man', h: 'Man Δ', title: 'Man coverage rate vs its baseline (charting snapshot), pct pts', v: r => r.man, f: r => dfmt(r, 'man') },
+      { k: 'twoHigh', h: 'Two-high Δ', title: 'Cover 2/4/6 rate vs its baseline (charting snapshot), pct pts', v: r => r.twoHigh, f: r => dfmt(r, 'twoHigh') }] : []),
+    { k: 'proe', h: 'PROE Δ', title: 'Their offense: pass rate over expected vs its baseline, pct pts', v: r => r.proe, f: r => dfmt(r, 'proe') },
+    { k: 'mo', h: 'Motion Δ', v: r => r.mo, f: r => dfmt(r, 'mo') },
+    { k: 'pa', h: 'Play-action Δ', v: r => r.pa, f: r => dfmt(r, 'pa') },
+    { k: 'aOff', h: `${A} off EPA`, good: 1, v: r => r.aOff, f: r => fmt(r.aOff) },
+    { k: 'aDef', h: `${A} def EPA`, good: -1, v: r => r.aDef, f: r => fmt(r.aDef) },
+  ], rows, 'muAll');
+  const avg = k => { const v = rows.map(r => r[k]).filter(x => !isNaN(x)); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : NaN; };
+  const avgRow = { blitz: avg('blitz'), rush: avg('rush'), heavy: avg('heavy'), man: avg('man'), twoHigh: avg('twoHigh'), proe: avg('proe'), mo: avg('mo'), pa: avg('pa') };
+  $('#muAll tbody').insertAdjacentHTML('beforeend', `<tr style="border-top:2px solid var(--line)"><td></td><td class="l"><b>Average change</b></td><td></td>
+    <td><b>${dfmt(avgRow, 'blitz')}</b></td><td><b>${dfmt(avgRow, 'rush', 1, 2)}</b></td><td><b>${dfmt(avgRow, 'heavy')}</b></td>${HAS_TAGS ? `<td><b>${dfmt(avgRow, 'man')}</b></td><td><b>${dfmt(avgRow, 'twoHigh')}</b></td>` : ''}
+    <td><b>${dfmt(avgRow, 'proe')}</b></td><td><b>${dfmt(avgRow, 'mo')}</b></td><td><b>${dfmt(avgRow, 'pa')}</b></td>
+    <td>${fmt(avg('aOff'))}</td><td>${fmt(avg('aDef'))}</td></tr>`);
+}
+
+function render() {
+  hideTip();
+  document.querySelector('.filters').hidden = state.tab === 'pickem' || state.tab === 'matchup';
+  ({ teams: renderTeams, qbs: renderQbs, trend: renderTrend, tend: renderTend, fourth: renderFourth, matchup: renderMatchup, pickem: renderPickem })[state.tab]();
+}
+setTab(state.tab || 'teams');
+})();
+</script>
+</body>
+</html>
