@@ -89,6 +89,14 @@ td.team img { width: 22px; height: 22px; object-fit: contain; }
 .g-lean .str { font-size: 12px; color: var(--muted); }
 .g-lean .res { font-size: 12px; margin-top: 2px; }
 .g-lean .res.w { color: var(--good); } .g-lean .res.l { color: var(--bad); }
+.g-mine { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: flex-end; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.g-mine .seg button { padding: 2px 8px; font-size: 12px; }
+.g-mine input { width: 58px; padding: 2px 6px; font-size: 12px; }
+.g-mine .locked { font-size: 11px; }
+.rec { display: flex; flex-wrap: wrap; gap: 10px 26px; margin: 6px 0 12px; }
+.rec div { font-size: 12px; color: var(--muted); } .rec b { display: block; font-size: 20px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.pk-tools { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 10px; font-size: 12.5px; }
+.pk-tools button { background: var(--chip); color: var(--ink); border: 1px solid var(--line); border-radius: 7px; padding: 4px 10px; font: inherit; cursor: pointer; }
 .g-model { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
 @media (max-width: 860px) {
   .game { grid-template-columns: 1fr 1fr; }
@@ -226,6 +234,22 @@ footer { color: var(--muted); font-size: 12px; margin-top: 24px; }
           <div class="seg" id="pkMode"><button data-v="ats" class="on">Against the spread</button><button data-v="su">Straight up</button></div></div>
       </div>
       <div class="pk" id="pkGames"></div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <h2>Season record</h2>
+      <p class="note">The tool's lean on each game is saved automatically every time you open this tab, and locks at kickoff along with your pick and the public %. Finished games are graded against the line that was in place when the pick locked: your league's line if you entered one, otherwise the market line then. Saved in this browser only, so use the same file and browser each week and download a backup now and then.</p>
+      <div class="rec" id="pkRec"></div>
+      <div class="tablewrap"><table id="pkRecTbl"></table></div>
+      <div class="pk-tools">
+        <span>Add a week you tracked by hand:</span>
+        <span>Week <input type="number" id="manWk" min="1" max="22" style="width:56px"></span>
+        <span>Your W <input type="number" id="manW" min="0" style="width:52px"></span>
+        <span>L <input type="number" id="manL" min="0" style="width:52px"></span>
+        <button id="manAdd">Add</button>
+        <span style="flex:1"></span>
+        <button id="logExport">Download backup</button>
+        <label style="cursor:pointer"><input type="file" id="logImport" accept=".json" hidden><span class="chip">Restore backup</span></label>
+      </div>
     </div>
     <div class="panel" style="margin-top:16px">
       <h2>Angles used, and how often they've hit</h2>
@@ -615,6 +639,61 @@ const TM = Object.fromEntries(T.map(t => [t.abbr, t]));
 let pkMode = 'ats', leagueLines = {};
 try { const s = JSON.parse(localStorage.getItem('pickem') || '{}'); pkMode = s.mode || 'ats'; leagueLines = s.lines || {}; } catch {}
 const savePk = () => { try { localStorage.setItem('pickem', JSON.stringify({ mode: pkMode, lines: leagueLines })); } catch {} };
+// ---------- pick log ----------
+// { gameId: { w, mode, line (home-favored +), tool, my, pub (% on home), locked } }; manual: { week: [w, l] }
+let pickLog = {}, manual = {};
+try { const s = JSON.parse(localStorage.getItem('pickLog') || '{}'); pickLog = s.games || {}; manual = s.manual || {}; } catch {}
+const saveLog = () => { try { localStorage.setItem('pickLog', JSON.stringify({ games: pickLog, manual })); } catch {} };
+function kickoff(gm) {        // game time is US Eastern; work out EST vs EDT for that date
+  let off = '-05:00';
+  try { const tz = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', timeZoneName: 'shortOffset' })
+      .formatToParts(new Date(`${gm.date}T12:00:00Z`)).find(x => x.type === 'timeZoneName').value;   // "GMT-5"
+    const h = +tz.replace('GMT', '') || -5; off = `${h < 0 ? '-' : '+'}${String(Math.abs(h)).padStart(2, '0')}:00`; } catch {}
+  return new Date(`${gm.date}T${gm.time}:00${off}`);
+}
+const RES = {}; for (const r of (PK?.results || [])) RES[r[0]] = { w: r[1], home: r[2], away: r[3], hs: r[4], as: r[5], close: r[6] };
+function grade(e, r, side) {   // 1 win, 0 loss, 0.5 push/tie, null ungradeable
+  if (!r || !side) return null;
+  const margin = r.hs - r.as;
+  if (e.mode === 'su') return margin === 0 ? 0.5 : ((margin > 0) === (side === 'home') ? 1 : 0);
+  const line = e.line ?? r.close; if (line == null) return null;
+  const ats = margin - line; return ats === 0 ? 0.5 : ((ats > 0) === (side === 'home') ? 1 : 0);
+}
+function record() {
+  const weeks = {}, tot = () => ({ tool: [0, 0, 0], my: [0, 0, 0], pub: [0, 0, 0], agree: [0, 0, 0], fade: [0, 0, 0] });
+  const bump = (a, g) => { if (g == null) return; a[g === 1 ? 0 : g === 0 ? 1 : 2]++; };
+  for (const [id, e] of Object.entries(pickLog)) {
+    const r = RES[id]; if (!r) continue;
+    const W = weeks[e.w] ||= tot();
+    bump(W.tool, grade(e, r, e.tool)); bump(W.my, grade(e, r, e.my));
+    if (e.pub != null && e.pub !== 50) bump(W.pub, grade(e, r, e.pub > 50 ? 'home' : 'away'));
+    if (e.my) bump(e.my === e.tool ? W.agree : W.fade, grade(e, r, e.my));
+  }
+  for (const [w, [mw, ml]] of Object.entries(manual)) { const W = weeks[w] ||= tot(); W.manual = [mw, ml]; }
+  return weeks;
+}
+const wl = a => a[0] + a[1] + a[2] ? `${a[0]}-${a[1]}${a[2] ? '-' + a[2] : ''}` : '–';
+const winPct = a => a[0] + a[1] ? (100 * (a[0] + 0.5 * a[2]) / (a[0] + a[1] + a[2])).toFixed(1) + '%' : '–';
+function renderRecord() {
+  const weeks = record(), ws = Object.keys(weeks).map(Number).sort((a, b) => a - b);
+  const sum = k => ws.reduce((a, w) => { const x = weeks[w][k]; return [a[0] + x[0], a[1] + x[1], a[2] + x[2]]; }, [0, 0, 0]);
+  const myAll = sum('my'); for (const w of ws) if (weeks[w].manual) { myAll[0] += weeks[w].manual[0]; myAll[1] += weeks[w].manual[1]; }
+  const T_ = sum('tool'), P_ = sum('pub'), A_ = sum('agree'), F_ = sum('fade');
+  $('#pkRec').innerHTML = `<div><b>${wl(T_)}</b>Tool leans · ${winPct(T_)}</div><div><b>${wl(myAll)}</b>Your picks · ${winPct(myAll)}</div>
+    <div><b>${wl(P_)}</b>Public majority · ${winPct(P_)}</div><div><b>${wl(A_)}</b>You, when you followed the tool</div><div><b>${wl(F_)}</b>You, when you went against it</div>`;
+  $('#pkRecTbl').innerHTML = ws.length ? '<thead><tr><th class="l">Week</th><th>Tool</th><th>You</th><th>Public</th><th>You with tool</th><th>You vs tool</th></tr></thead><tbody>' +
+    ws.map(w => { const W = weeks[w], my = W.manual ? `${W.manual[0]}-${W.manual[1]} <span class="note">(by hand)</span>` : wl(W.my);
+      return `<tr><td class="l">${w}</td><td>${wl(W.tool)}</td><td>${my}</td><td>${wl(W.pub)}</td><td>${wl(W.agree)}</td><td>${wl(W.fade)}</td></tr>`; }).join('') + '</tbody>'
+    : '<tbody><tr><td class="l note">No graded games yet. Results show up after the next update once games finish.</td></tr></tbody>';
+}
+$('#manAdd').onclick = () => { const w = +$('#manWk').value, a = +$('#manW').value, b = +$('#manL').value;
+  if (!w || isNaN(a) || isNaN(b)) return; manual[w] = [a, b]; saveLog(); render(); };
+$('#logExport').onclick = () => { const blob = new Blob([JSON.stringify({ games: pickLog, manual, league: leagueLines }, null, 1)], { type: 'application/json' });
+  const u = URL.createObjectURL(blob), x = document.createElement('a'); x.href = u; x.download = `pickem-log-${D.meta.season}.json`; x.click(); URL.revokeObjectURL(u); };
+$('#logImport').onchange = async e => { const f = e.target.files[0]; if (!f) return;
+  try { const j = JSON.parse(await f.text()); Object.assign(pickLog, j.games || {}); Object.assign(manual, j.manual || {});
+    Object.assign(leagueLines, j.league || {}); saveLog(); savePk(); render(); } catch { alert('That file is not a pick log backup.'); } };
+
 $('#pkMode').onclick = e => { const b = e.target.closest('button'); if (!b) return; pkMode = b.dataset.v; savePk(); render(); };
 // spread convention from nflverse: + = home favored. Display as standard book notation.
 const lineTxt = (fav, pts) => pts === 0 ? 'PK' : `${fav} −${Math.abs(pts)}`;
@@ -703,6 +782,15 @@ function renderPickem() {
     const mv = A.move == null ? '' : `<div class="mv">market now ${homeLine(gm.spread)} → ${A.move > 0 ? h.abbr : a.abbr} getting value</div>`;
     const leagueBox = pkMode === 'ats' ? `<div class="g-league"><label for="lg-${gm.id}">Your league's line, ${h.abbr}</label>
         <input type="number" step="0.5" id="lg-${gm.id}" data-id="${gm.id}" value="${lg}" placeholder="${homeLine(gm.spread)}">${mv}</div>` : '<div></div>';
+    // save / lock the pick log entry
+    const locked = Date.now() >= kickoff(gm).getTime() || final;
+    const e = pickLog[gm.id] ||= { w: PK.week };
+    if (!locked) { e.w = PK.week; e.mode = pkMode; e.line = pkMode === 'ats' ? A.line : null; e.tool = pickSide; }
+    const my = e.my, pub = e.pub ?? '';
+    const mine = `<div class="g-mine">${locked ? `<span class="locked">🔒 ${my ? `you: ${tm_(my)}` : 'no pick saved'}${e.tool ? ` · tool: ${tm_(e.tool)}` : ''}</span>`
+      : `<span>Your pick</span><div class="seg" data-id="${gm.id}"><button data-s="away" class="${my === 'away' ? 'on' : ''}">${a.abbr}</button><button data-s="home" class="${my === 'home' ? 'on' : ''}">${h.abbr}</button></div>
+         <span title="Share of your league picking ${h.abbr}, if your pool shows it">Public on ${h.abbr}</span><input type="number" min="0" max="100" placeholder="%" data-pub="${gm.id}" value="${pub}">`}</div>`;
+    leanHtml += mine;
     const teamRow = (tm, s, score) => `<div class="g-team ${s === pickSide ? 'pick' : ''}">${logo(tm)}<span>${tm.abbr}</span>
         <span class="ln">${s === 'home' ? homeLine(gm.spread) : homeLine(gm.spread == null ? null : -gm.spread)}</span>${score != null ? `<span class="sc">${score}</span>` : ''}</div>`;
     return `<div class="game ${final ? 'final' : ''}">
@@ -713,6 +801,12 @@ function renderPickem() {
       <div class="g-lean">${leanHtml}</div>
     </div>`;
   }).join('');
+  saveLog();
+  host.querySelectorAll('.g-mine .seg').forEach(sg => sg.onclick = ev => { const b = ev.target.closest('button'); if (!b) return;
+    const en = pickLog[sg.dataset.id]; en.my = en.my === b.dataset.s ? null : b.dataset.s; saveLog(); render(); });
+  host.querySelectorAll('.g-mine input[data-pub]').forEach(inp => inp.onchange = () => {
+    const v = inp.value.trim(), en = pickLog[inp.dataset.pub]; en.pub = v === '' ? null : Math.max(0, Math.min(100, +v)); saveLog(); render(); });
+  renderRecord();
   host.querySelectorAll('.g-league input').forEach(inp => inp.onchange = () => {
     const v = inp.value.trim(); if (v === '') delete leagueLines[inp.dataset.id]; else leagueLines[inp.dataset.id] = v;
     savePk(); render(); });

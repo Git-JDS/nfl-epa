@@ -308,7 +308,11 @@ def pickem(season: int, pbp_cur: pd.DataFrame, refresh: bool) -> dict | None:
             "homeScore": None if pd.isna(x.home_score) else int(x.home_score),
             "awayScore": None if pd.isna(x.away_score) else int(x.away_score),
         })
-    return {"season": season, "week": week, "games": games, **angle_history(g, season)}
+    # every finished game this season, for grading saved picks: [id, week, home, away, home pts, away pts, closing spread]
+    results = [[x.game_id, int(x.week), x.home_team, x.away_team, int(x.home_score), int(x.away_score),
+                None if pd.isna(x.spread_line) else float(x.spread_line)]
+               for x in sg[sg.result.notna()].itertuples()]
+    return {"season": season, "week": week, "games": games, "results": results, **angle_history(g, season)}
 
 
 # ---------------------------------------------------------------- main
